@@ -358,7 +358,7 @@ class ImapBackend(MailBackend):
         return out
 
     @_reconnecting
-    def fetch_dates(self, folder, min_uid):
+    def fetch_dates(self, folder, min_uid, since_ts=0):
         uidvalidity = self._select(folder)
         typ, data = self.conn.uid("FETCH", f"{max(min_uid, 1)}:*", "(UID INTERNALDATE)")
         if typ != "OK":

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Optional
+from typing import Optional, Union
+
+# IMAP : entier ; Microsoft Graph / Outlook : identifiant texte
+Uid = Union[int, str]
 
 
 @dataclass
@@ -22,7 +25,7 @@ class MailHeader:
 
     folder: str
     uidvalidity: int
-    uid: int
+    uid: Uid
     message_id: str = ""
     subject: str = ""
     from_name: str = ""
@@ -71,6 +74,6 @@ class MailBody:
     headers: dict[str, str] = field(default_factory=dict)
 
 
-def split_key(key: str) -> tuple[str, int, int]:
+def split_key(key: str) -> tuple[str, int, Uid]:
     folder, uidvalidity, uid = key.split("\x1f")
-    return folder, int(uidvalidity), int(uid)
+    return folder, int(uidvalidity), int(uid) if uid.isdigit() else uid

@@ -491,7 +491,7 @@ function onboardingHtml() {
     <div class="muted">Tout reste sur votre machine : vos emails ne sont envoyés qu'à l'IA que vous configurez.</div>
     <div class="steps-list">
       <div class="step-item ${c.llm ? "done" : ""}"><div class="step-num">${c.llm ? "✓" : 1}</div><div><b>Connecter l'IA locale</b><div class="small muted">Ollama, LM Studio, vLLM… (API compatible OpenAI)</div><a href="#/settings" class="small">Configurer →</a></div></div>
-      <div class="step-item ${c.mail ? "done" : ""}"><div class="step-num">${c.mail ? "✓" : 2}</div><div><b>Connecter la boîte mail</b><div class="small muted">IMAP / SMTP, ou mode démo pour essayer</div><a href="#/settings" class="small">Configurer →</a></div></div>
+      <div class="step-item ${c.mail ? "done" : ""}"><div class="step-num">${c.mail ? "✓" : 2}</div><div><b>Connecter la boîte mail</b><div class="small muted">Microsoft 365 / Exchange, Outlook, IMAP — ou mode démo</div><a href="#/settings" class="small">Configurer →</a></div></div>
       <div class="step-item"><div class="step-num">3</div><div><b>Choisir la période</b><div class="small muted">Glissez sur la timeline ci-dessus pour limiter le périmètre traité.</div></div></div>
     </div></div>`;
 }
@@ -1173,9 +1173,23 @@ function renderSettings() {
         <div class="row"><button class="btn" id="test-llm">${icon("bolt")}Tester & lister les modèles</button><span class="spacer"></span><button class="btn primary" data-save="llm">${icon("save")}Enregistrer</button></div>
       </div></section>
 
-    <section class="card settings-section" id="s-mail"><div class="card-head"><div class="section-title"><div class="ic blue">${icon("mail")}</div><div><b>Messagerie</b><div class="small muted">IMAP pour lire et ranger, SMTP pour envoyer.</div></div></div></div>
+    <section class="card settings-section" id="s-mail"><div class="card-head"><div class="section-title"><div class="ic blue">${icon("mail")}</div><div><b>Messagerie</b><div class="small muted">Microsoft 365 / Exchange, Outlook classique pour Mac, ou IMAP.</div></div></div></div>
       <div class="card-pad">
-        <div class="segmented" id="provider"><button data-p="demo" class="${s.mail.provider === "demo" ? "active" : ""}">Mode démo</button><button data-p="imap" class="${s.mail.provider === "imap" ? "active" : ""}">Compte IMAP</button></div>
+        <div class="segmented" id="provider">${[["demo", "Mode démo"], ["graph", "Microsoft 365 / Exchange"], ["outlook_mac", "Outlook classique (Mac)"], ["imap", "IMAP"]]
+          .map(([p, l]) => `<button data-p="${p}" class="${s.mail.provider === p ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div id="graph-fields" class="stack ${s.mail.provider === "graph" ? "" : "hidden"}" style="gap:12px">
+          <div class="muted small">Connexion à votre compte professionnel comme dans Outlook (authentification Microsoft, MFA comprise). Fonctionne avec le Nouvel Outlook : l'application lit la même boîte, sans accès serveur ni IMAP.</div>
+          <div id="graph-panel"></div>
+          <details class="small"><summary class="muted" style="cursor:pointer">Paramètres avancés</summary>
+            <div class="grid-2" style="margin-top:10px">
+              <label class="field">ID d'application (client ID)<input class="input" data-path="mail.graph_client_id" value="${v(s.mail.graph_client_id)}"><span class="hint">Par défaut : application publique Microsoft « Graph Command Line Tools ». Si votre service informatique fournit son propre ID, saisissez-le ici.</span></label>
+              <label class="field">Organisation (tenant)<input class="input" data-path="mail.graph_tenant" value="${v(s.mail.graph_tenant)}" placeholder="organizations"><span class="hint">« organizations » ou le domaine de votre entreprise (ex. entreprise.fr).</span></label>
+            </div></details>
+        </div>
+        <div id="outlook-fields" class="stack ${s.mail.provider === "outlook_mac" ? "" : "hidden"}" style="gap:10px">
+          <div class="notice">${icon("alert")}<div>Ce mode pilote <b>Outlook classique</b> (« Legacy Outlook ») par AppleScript. Le <b>Nouvel Outlook</b> ne le permet pas : choisissez alors « Microsoft 365 / Exchange ».</div></div>
+          <div class="small muted">Outlook doit être ouvert. Au premier test, macOS demande l'autorisation de piloter Outlook (Réglages Système → Confidentialité et sécurité → Automatisation).</div>
+        </div>
         <div id="imap-fields" class="stack ${s.mail.provider === "imap" ? "" : "hidden"}" style="gap:16px">
           <div class="provider-presets"><span class="small faint" style="align-self:center">Fournisseur :</span>${Object.keys(MAIL_PRESETS).map((n) => `<button class="chip" data-mail-preset="${n}">${n}</button>`).join("")}</div>
           <div id="preset-note" class="notice hidden"></div>
@@ -1230,7 +1244,14 @@ function renderSettings() {
   $("[data-path='llm.temperature']").oninput = (e) => ($("#temp-val").textContent = e.target.value);
   $$("[data-llm-preset]").forEach((b) => (b.onclick = () => { $("[data-path='llm.base_url']").value = b.dataset.llmPreset; }));
   let provider = s.mail.provider;
-  $$("#provider button").forEach((b) => (b.onclick = () => { provider = b.dataset.p; $$("#provider button").forEach((x) => x.classList.toggle("active", x === b)); $("#imap-fields").classList.toggle("hidden", provider !== "imap"); }));
+  $$("#provider button").forEach((b) => (b.onclick = () => {
+    provider = b.dataset.p;
+    $$("#provider button").forEach((x) => x.classList.toggle("active", x === b));
+    $("#imap-fields").classList.toggle("hidden", provider !== "imap");
+    $("#graph-fields").classList.toggle("hidden", provider !== "graph");
+    $("#outlook-fields").classList.toggle("hidden", provider !== "outlook_mac");
+  }));
+  loadGraphPanel();
   $$("[data-mail-preset]").forEach((b) => (b.onclick = () => {
     const [ih, ip, sh, sp, sec, note] = MAIL_PRESETS[b.dataset.mailPreset];
     $("[data-path='mail.imap_host']").value = ih; $("[data-path='mail.imap_port']").value = ip; $("[data-path='mail.imap_ssl']").checked = true;
@@ -1243,7 +1264,11 @@ function renderSettings() {
       const key = inp.dataset.path.split(".")[1];
       out[key] = inp.type === "checkbox" ? inp.checked : inp.dataset.type === "number" ? Number(inp.value) : inp.value;
     });
-    if (section === "mail") out.provider = provider;
+    if (section === "mail") {
+      out.provider = provider;
+      // les champs IMAP/SMTP ne concernent que le mode IMAP (l'identité Microsoft vient de la connexion)
+      if (provider !== "imap") for (const k of Object.keys(out)) if (/^(imap_|smtp_)|^(username|password)$/.test(k)) delete out[k];
+    }
     return out;
   };
   $$("[data-save]").forEach((b) => (b.onclick = async () => {
@@ -1252,7 +1277,7 @@ function renderSettings() {
     try {
       await api("/api/settings", { method: "PUT", body: { [section]: collect(section) } });
       await refreshState();
-      if (section === "mail") { S.folders = []; S.inbox = { ...S.inbox, items: [], selected: null }; S.priority = null; S.plan = null; loadTimeline(); renderScopebar(); }
+      if (section === "mail") { await afterMailboxChange(); loadGraphPanel(); }
       toast("Réglages enregistrés", "success");
     } catch (e) { fail(e); }
     setBusy(b, false);
@@ -1274,7 +1299,7 @@ function renderSettings() {
       await api("/api/settings", { method: "PUT", body: { mail: collect("mail") } });
       const r = await api("/api/test/mail", { method: "POST" });
       out.innerHTML = `<div class="test-result ok">${icon("check")} Connexion réussie · ${r.folders} dossiers trouvés (réglages enregistrés)</div>`;
-      await refreshState(); S.folders = []; loadTimeline();
+      await afterMailboxChange();
     } catch (err) { out.innerHTML = `<div class="test-result ko">${esc(err.message)}</div>`; }
     setBusy(e.currentTarget, false);
   };
@@ -1293,6 +1318,71 @@ function renderSettings() {
     const target = location.hash.split("?")[1];
     if ($(`#s-${target}`)) $(`#s-${target}`).scrollIntoView();
   }
+}
+
+/* ---------- Connexion Microsoft 365 ---------- */
+let graphPoll = null;
+
+async function loadGraphPanel() {
+  const panel = $("#graph-panel");
+  if (!panel) return;
+  try { renderGraphPanel(await api("/api/graph/status")); } catch (e) { panel.innerHTML = `<div class="test-result ko">${esc(e.message)}</div>`; }
+}
+
+function renderGraphPanel(st) {
+  const panel = $("#graph-panel");
+  if (!panel) return;
+  if (st.connected && !st.pending) {
+    panel.innerHTML = `<div class="graph-box row"><span class="dot ok"></span><div class="grow"><b>Connecté</b> · ${esc(st.name || "")} <span class="muted">${esc(st.account)}</span></div>
+      <button class="btn sm" id="graph-relogin">Changer de compte</button><button class="btn sm ghost danger" id="graph-logout">Se déconnecter</button></div>`;
+    $("#graph-logout").onclick = async () => {
+      if (!(await modal({ title: "Se déconnecter de Microsoft 365 ?", body: "Le jeton local et le cache des emails seront supprimés.", confirm: "Se déconnecter", danger: true }))) return;
+      renderGraphPanel(await api("/api/graph/logout", { method: "POST" }).catch(fail));
+      await afterMailboxChange();
+    };
+    $("#graph-relogin").onclick = graphLogin;
+    return;
+  }
+  if (st.pending) {
+    panel.innerHTML = `<div class="graph-box stack" style="gap:10px">
+      <div><b>1.</b> Ouvrez la page de connexion Microsoft · <b>2.</b> saisissez ce code · <b>3.</b> connectez-vous avec votre compte professionnel.</div>
+      <div class="row wrap"><span class="device-code">${esc(st.user_code)}</span>
+        <button class="btn sm" id="graph-copy">${icon("copy")}Copier</button>
+        <a class="btn sm primary" href="${esc(st.verification_uri)}" target="_blank" rel="noopener">${icon("arrowRight")}Ouvrir la page Microsoft</a></div>
+      <div class="small muted row"><span class="spinner" style="width:12px;height:12px"></span>En attente de votre connexion…</div></div>`;
+    $("#graph-copy").onclick = () => navigator.clipboard.writeText(st.user_code).then(() => toast("Code copié", "success"));
+    return;
+  }
+  panel.innerHTML = `${st.error ? `<div class="test-result ko" style="margin-bottom:10px">${esc(st.error)}</div>` : ""}
+    <button class="btn primary" id="graph-login">${icon("user")}Se connecter avec Microsoft</button>`;
+  $("#graph-login").onclick = graphLogin;
+}
+
+async function graphLogin(e) {
+  const btn = e && e.currentTarget;
+  setBusy(btn, true, "Connexion…");
+  try {
+    const st = await api("/api/graph/login", { method: "POST", body: {
+      client_id: ($("[data-path='mail.graph_client_id']") || {}).value || "",
+      tenant: ($("[data-path='mail.graph_tenant']") || {}).value || "",
+    } });
+    renderGraphPanel(st);
+    clearInterval(graphPoll);
+    graphPoll = setInterval(async () => {
+      const s = await api("/api/graph/status").catch(() => null);
+      if (!s || s.pending) return;
+      clearInterval(graphPoll);
+      renderGraphPanel(s);
+      if (s.connected) { toast(`Connecté à ${s.account}`, "success"); await afterMailboxChange(); }
+    }, 2000);
+  } catch (err) { fail(err); setBusy(btn, false); }
+}
+
+async function afterMailboxChange() {
+  await refreshState();
+  S.folders = []; S.inbox = { ...S.inbox, items: [], selected: null, offset: 0 }; S.priority = null; S.plan = null; S.digest = null;
+  renderScopebar(); loadTimeline();
+  if (S.route === "settings") { renderSettings(); $("#s-mail").scrollIntoView(); }
 }
 
 /* =====================================================================

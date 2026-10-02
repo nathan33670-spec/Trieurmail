@@ -39,9 +39,23 @@ Tous les paramètres sont réglables : température, tokens max, délai, requêt
 
 ### 2. Brancher la boîte mail (Réglages → Messagerie)
 
-Choisissez « Compte IMAP » et un fournisseur (Gmail, Outlook, Yahoo, iCloud, Orange, Free, OVH, Infomaniak) pour pré-remplir les serveurs, ou saisissez-les.
+#### Microsoft 365 / Exchange Online (recommandé, compatible Nouvel Outlook pour Mac)
 
-> Gmail, Yahoo et iCloud exigent un **mot de passe d'application**. Certains comptes Microsoft n'acceptent plus que OAuth, non géré pour l'instant.
+1. Choisissez **Microsoft 365 / Exchange**, puis **Se connecter avec Microsoft**.
+2. Un code s'affiche. Ouvrez la page Microsoft, saisissez le code et connectez-vous avec votre compte professionnel (MFA comprise).
+3. C'est tout : l'application lit la même boîte que le Nouvel Outlook, via l'API officielle Microsoft Graph. Vous n'avez besoin ni d'accès au serveur, ni d'IMAP, ni de mot de passe. Les dossiers créés par le tri et les brouillons de réponse (rattachés au fil, avec l'historique cité) apparaissent directement dans Outlook.
+
+Le jeton de connexion est stocké localement (`~/.trieurmail/graph_token.json`, lisible par vous seul). Les droits demandés sont `Mail.ReadWrite`, `Mail.Send`, `User.Read` et `offline_access`.
+
+Par défaut, la connexion utilise l'application publique Microsoft « Graph Command Line Tools ». Si votre organisation bloque ce type de connexion (message « approbation d'un administrateur requise » ou « accès conditionnel »), demandez à votre service informatique d'autoriser cette application, ou de vous fournir l'ID d'une application interne. Vous le saisirez dans *Paramètres avancés*, avec éventuellement le domaine de l'entreprise comme « tenant ».
+
+#### Outlook classique pour Mac (AppleScript)
+
+Ce mode pilote directement l'application Outlook, **uniquement dans sa version classique (« Legacy Outlook »)**. Le Nouvel Outlook pour Mac ne prend pas en charge AppleScript, et Microsoft a annoncé en août 2026 renoncer à l'ajouter. La version classique n'est plus supportée depuis octobre 2026. Outlook doit être ouvert, et macOS demande au premier usage l'autorisation de le piloter (Réglages Système → Confidentialité et sécurité → Automatisation).
+
+#### IMAP (autres fournisseurs)
+
+Choisissez « IMAP » et un fournisseur (Gmail, Yahoo, iCloud, Orange, Free, OVH, Infomaniak) pour pré-remplir les serveurs, ou saisissez-les. Gmail, Yahoo et iCloud exigent un **mot de passe d'application**.
 
 ## Optimisations
 
@@ -53,6 +67,12 @@ L'application est conçue pour qu'un modèle local, même modeste, reste utilisa
 - Corps complets téléchargés **à la demande** puis gardés en cache. Gestion de `UIDVALIDITY` et des noms de dossiers UTF-7.
 - Timeline construite à partir des seules dates de réception, avec un index incrémental.
 - `MOVE` natif si disponible, déplacements groupés par plages d'UID (`1:50,72,90:120`).
+
+**Côté Microsoft 365 (Graph)**
+- Identifiants immuables (`ImmutableId`) : un email garde son identifiant après un déplacement, donc le cache reste valide.
+- La recherche par période ne demande que `id`, `isRead` et `flag`. La même réponse sert à rafraîchir les drapeaux, sans requête supplémentaire.
+- En-têtes des nouveaux emails, déplacements et marquages groupés par `$batch` (20 opérations par appel HTTP), avec respect de `Retry-After` en cas de limitation.
+- Classement « Autres » de la boîte Prioritaire d'Outlook réutilisé pour écarter les envois de masse sans appel IA.
 
 **Côté IA**
 - **Tri par expéditeur, pas par email** : 10 000 emails venant de 400 expéditeurs donnent 1 appel pour l'arborescence et une dizaine pour le classement (40 expéditeurs par appel, réponses sous forme d'index numériques très courtes).
@@ -83,6 +103,9 @@ trieurmail/
 ├── config.py              réglages persistés (JSON)
 ├── db.py                  cache SQLite : en-têtes, corps, résultats IA, plans de tri, règles
 ├── mail/
+│   ├── graph_backend.py   Microsoft 365 / Exchange via Microsoft Graph ($batch, ImmutableId)
+│   ├── graph_auth.py      connexion Microsoft par code (device code flow), jetons locaux
+│   ├── outlook_mac_backend.py  pilotage d'Outlook classique pour Mac (JXA / AppleScript)
 │   ├── imap_backend.py    IMAP générique (lots, PEEK, MOVE, UTF-7, reconnexion)
 │   ├── demo_backend.py    boîte fictive en mémoire
 │   ├── parsing.py         décodage MIME, extraits, nettoyage pour le LLM
@@ -110,4 +133,4 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Les tests utilisent la boîte démo et un faux serveur compatible OpenAI (`tests/fake_llm.py`), qu'on peut aussi lancer à la main (`python tests/fake_llm.py 8799`) pour explorer l'interface sans modèle.
+Les tests utilisent la boîte démo, un faux Microsoft Graph (`tests/fake_graph.py`), un faux Outlook et un faux serveur compatible OpenAI (`tests/fake_llm.py`), qu'on peut aussi lancer à la main (`python tests/fake_llm.py 8799`) pour explorer l'interface sans modèle.

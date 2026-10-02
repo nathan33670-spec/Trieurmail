@@ -226,7 +226,7 @@ class DemoBackend(MailBackend):
             box = self._get(folder)
             return {u: (box[u]["seen"], box[u]["flagged"], box[u]["answered"]) for u in uids if u in box}
 
-    def fetch_dates(self, folder, min_uid):
+    def fetch_dates(self, folder, min_uid, since_ts=0):
         with self._lock:
             return 1, [(u, m["date"]) for u, m in self._get(folder).items() if u >= min_uid]
 

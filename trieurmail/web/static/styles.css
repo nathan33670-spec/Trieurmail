@@ -337,3 +337,8 @@ input[type="range"] { accent-color: var(--accent); width: 100%; }
   .tree-row { grid-template-columns: 24px 1fr 34px; }
   .tree-row .desc, .tree-row .count { display: none; }
 }
+
+/* ---------- Connexion Microsoft 365 ---------- */
+.graph-box { padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.device-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 24px; font-weight: 700; letter-spacing: .12em; padding: 6px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px dashed var(--accent); color: var(--accent-text); }
+#provider { flex-wrap: wrap; }

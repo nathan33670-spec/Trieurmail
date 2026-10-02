@@ -39,8 +39,17 @@ class LLMSettings(BaseModel):
         return self.model_fast or self.model
 
 
+# Application publique « Microsoft Graph Command Line Tools » (Microsoft) : permet la
+# connexion par code sans enregistrer d'application. Remplaçable par l'ID d'une
+# application de votre organisation.
+GRAPH_DEFAULT_CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+
+
 class MailSettings(BaseModel):
-    provider: Literal["demo", "imap"] = "demo"
+    # graph = Microsoft 365 / Exchange Online ; outlook_mac = pilotage d'Outlook classique (AppleScript)
+    provider: Literal["demo", "graph", "outlook_mac", "imap"] = "demo"
+    graph_client_id: str = GRAPH_DEFAULT_CLIENT_ID
+    graph_tenant: str = "organizations"
     imap_host: str = ""
     imap_port: int = 993
     imap_ssl: bool = True

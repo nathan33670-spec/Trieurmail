@@ -1,6 +1,7 @@
 """API HTTP + service de l'interface (SPA statique, sans étape de build)."""
 from __future__ import annotations
 
+import asyncio
 import html as html_lib
 import json
 import re
@@ -57,6 +58,11 @@ class SendIn(BaseModel):
     subject: str
     body: str
     send: bool = False
+
+
+class GraphLoginIn(BaseModel):
+    client_id: str = ""
+    tenant: str = ""
 
 
 class ProposeIn(BaseModel):
@@ -120,7 +126,12 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
         c = C()
         s = c.settings
         configured_llm = bool(s.llm.base_url and s.llm.model)
-        configured_mail = s.mail.provider == "demo" or bool(s.mail.imap_host and s.mail.username)
+        configured_mail = {
+            "demo": True,
+            "graph": c.graph_auth.connected,
+            "outlook_mac": True,
+            "imap": bool(s.mail.imap_host and s.mail.username),
+        }[s.mail.provider]
         plan = c.db.get_plan()
         return {
             "settings": s.public(),
@@ -170,6 +181,50 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     async def test_mail():
         folders = await C().mail(C().backend.list_folders)
         return {"folders": len(folders)}
+
+    # -- connexion Microsoft 365 ------------------------------------------
+    @app.get("/api/graph/status")
+    async def graph_status():
+        return C().graph_auth.status()
+
+    @app.post("/api/graph/login")
+    async def graph_login(data: GraphLoginIn):
+        c = C()
+        patch = {"provider": "graph"}
+        if data.client_id.strip():
+            patch["graph_client_id"] = data.client_id.strip()
+        if data.tenant.strip():
+            patch["graph_tenant"] = data.tenant.strip()
+        await c.update_settings({"mail": patch})
+        auth = c.graph_auth
+        status = await asyncio.to_thread(auth.start_device_flow)
+
+        async def poll() -> None:
+            while auth.flow:
+                await asyncio.sleep(auth.flow["interval"])
+                result = await asyncio.to_thread(auth.poll_once)
+                if result == "ok":
+                    m = c.settings.mail
+                    if auth.account and auth.account.lower() != m.username.lower():
+                        await c.update_settings({"mail": {
+                            "username": auth.account,
+                            "from_address": auth.account,
+                            "from_name": m.from_name or auth.display_name,
+                        }})
+                    return
+                if result == "error":
+                    return
+
+        app.state.graph_poll = asyncio.create_task(poll())
+        return status
+
+    @app.post("/api/graph/logout")
+    async def graph_logout():
+        c = C()
+        c.graph_auth.logout()
+        await asyncio.to_thread(c.reset_mailbox)
+        await c.update_settings({"mail": {"username": "", "from_address": ""}})
+        return c.graph_auth.status()
 
     @app.get("/api/folders")
     async def folders():

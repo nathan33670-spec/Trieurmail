@@ -118,8 +118,8 @@ class Database:
 
     def update_flags(self, folder: str, flags: dict[int, tuple[bool, bool, bool]]) -> None:
         self.executemany(
-            "UPDATE messages SET seen=?, flagged=?, answered=? WHERE folder=? AND uid=?",
-            [(int(s), int(f), int(a), folder, uid) for uid, (s, f, a) in flags.items()],
+            "UPDATE messages SET seen=?, flagged=?, answered=COALESCE(?, answered) WHERE folder=? AND uid=?",
+            [(int(s), int(f), None if a is None else int(a), folder, uid) for uid, (s, f, a) in flags.items()],
         )
 
     def delete_uids(self, folder: str, uids: Iterable[int]) -> None:
@@ -183,7 +183,13 @@ class Database:
 
     # -- timeline ----------------------------------------------------------
     def date_index_max_uid(self, folder: str) -> int:
-        rows = self.execute("SELECT MAX(uid) AS m FROM date_index WHERE folder=?", (folder,))
+        rows = self.execute(
+            "SELECT MAX(uid) AS m FROM date_index WHERE folder=? AND typeof(uid)='integer'", (folder,)
+        )
+        return rows[0]["m"] or 0
+
+    def date_index_max_ts(self, folder: str) -> int:
+        rows = self.execute("SELECT MAX(ts) AS m FROM date_index WHERE folder=?", (folder,))
         return rows[0]["m"] or 0
 
     def add_dates(self, folder: str, uidvalidity: int, items: list[tuple[int, int]]) -> None:

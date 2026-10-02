@@ -8,7 +8,7 @@ from typing import AsyncIterator
 from ..llm import prompts
 from ..mail.backend import MailError
 from ..mail.compose import build_reply, reply_subject, send_smtp
-from ..mail.models import MailHeader
+from ..mail.models import MailHeader, split_key
 from ..mail.parsing import clean_for_llm
 from .common import fmt_date, get_body, sender_label
 from .context import AppContext
@@ -71,6 +71,10 @@ async def save_or_send(ctx: AppContext, h: MailHeader, *, to: str, cc: str, subj
         raise MailError("Destinataire manquant")
     if not body.strip():
         raise MailError("Le message est vide")
+    folder, _, uid = split_key(h.key)
+    native = await ctx.mail(ctx.backend.reply_draft, folder, uid, to=to, cc=cc, subject=subject, body=body, send=send)
+    if native is not None:
+        return native  # Microsoft 365 / Outlook : réponse dans le fil, historique cité conservé
     original = await get_body(ctx, h)
     msg = build_reply(
         ctx.settings.mail, to=to, cc=cc, subject=subject, body=body,

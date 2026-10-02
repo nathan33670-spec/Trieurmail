@@ -9,6 +9,7 @@ from typing import Any, Callable, Optional
 from ..config import Settings, SettingsStore, data_dir
 from ..db import Database
 from ..llm.client import LLMClient
+from ..mail.graph_auth import GraphAuth
 from ..mail import MailBackend, create_backend
 from .jobs import JobManager
 
@@ -41,6 +42,7 @@ class AppContext:
         self.jobs = JobManager()
         self._backend: Optional[MailBackend] = None
         self._llm: Optional[LLMClient] = None
+        self._graph_auth: Optional[GraphAuth] = None
         self._mail_lock = asyncio.Lock()
 
     @property
@@ -48,10 +50,28 @@ class AppContext:
         return self.store.settings
 
     @property
+    def graph_auth(self) -> GraphAuth:
+        m = self.settings.mail
+        if self._graph_auth is None or (self._graph_auth.client_id, self._graph_auth.tenant) != (
+            m.graph_client_id, m.graph_tenant or "organizations"
+        ):
+            self._graph_auth = GraphAuth(m.graph_client_id, m.graph_tenant, data_dir() / "graph_token.json")
+        return self._graph_auth
+
+    @property
     def backend(self) -> MailBackend:
         if self._backend is None:
-            self._backend = create_backend(self.settings.mail)
+            m = self.settings.mail
+            self._backend = create_backend(m, self.graph_auth if m.provider == "graph" else None)
         return self._backend
+
+    def reset_mailbox(self) -> None:
+        """Autre boîte mail : le cache des messages n'est plus valable."""
+        if self._backend is not None:
+            self._backend.close()
+        self._backend = None
+        for table in ("messages", "folder_state", "date_index", "bodies", "insights", "sort_plans", "rules", "kv"):
+            self.db.execute(f"DELETE FROM {table}")
 
     @property
     def llm(self) -> LLMClient:
@@ -59,24 +79,22 @@ class AppContext:
             self._llm = LLMClient(self.settings.llm, self.db)
         return self._llm
 
-    async def mail(self, fn: Callable[..., Any], *args: Any) -> Any:
-        """Exécute un appel IMAP bloquant hors de la boucle asyncio, en série."""
+    async def mail(self, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+        """Exécute un appel bloquant (IMAP, Graph, AppleScript) hors de la boucle asyncio, en série."""
         async with self._mail_lock:
-            return await asyncio.to_thread(fn, *args)
+            return await asyncio.to_thread(fn, *args, **kwargs)
 
     async def update_settings(self, patch: dict) -> Settings:
         before = self.settings
         after = self.store.update(patch)
         if after.mail != before.mail:
-            if self._backend is not None:
-                await asyncio.to_thread(self._backend.close)
-            self._backend = None
-            if (after.mail.provider, after.mail.imap_host, after.mail.username) != (
-                before.mail.provider, before.mail.imap_host, before.mail.username
-            ):
-                # autre boîte mail : le cache des messages n'est plus valable
-                for table in ("messages", "folder_state", "date_index", "bodies", "insights", "sort_plans", "rules", "kv"):
-                    self.db.execute(f"DELETE FROM {table}")
+            identity = lambda m: (m.provider, m.imap_host, m.username, m.graph_tenant)  # noqa: E731
+            if identity(after.mail) != identity(before.mail):
+                await asyncio.to_thread(self.reset_mailbox)
+            else:
+                if self._backend is not None:
+                    await asyncio.to_thread(self._backend.close)
+                self._backend = None
         if after.llm != before.llm:
             await self.close_llm()
         return after
@@ -108,4 +126,9 @@ class AppContext:
             from ..mail.demo_backend import ME
 
             return {ME}
-        return {a.lower() for a in (m.from_address, m.username, m.smtp_username) if a and "@" in a}
+        addresses = {a.lower() for a in (m.from_address, m.username, m.smtp_username) if a and "@" in a}
+        if m.provider == "graph" and self.graph_auth.account:
+            addresses.add(self.graph_auth.account.lower())
+        elif m.provider == "outlook_mac" and self._backend is not None:
+            addresses.update(self._backend.account_addresses())
+        return addresses

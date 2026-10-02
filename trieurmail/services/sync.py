@@ -81,14 +81,15 @@ async def timeline(ctx: AppContext, folders: list[str], rebuild: bool = False) -
         if rebuild:
             db.clear_date_index(folder)
         start = db.date_index_max_uid(folder) + 1
+        since_ts = db.date_index_max_ts(folder)
         try:
-            uidvalidity, items = await ctx.mail(backend.fetch_dates, folder, start)
+            uidvalidity, items = await ctx.mail(backend.fetch_dates, folder, start, since_ts)
         except MailError:
             continue
         known_uv = db.date_index_uidvalidity(folder)
         if known_uv is not None and known_uv != uidvalidity:
             db.clear_date_index(folder)
-            uidvalidity, items = await ctx.mail(backend.fetch_dates, folder, 1)
+            uidvalidity, items = await ctx.mail(backend.fetch_dates, folder, 1, 0)
         db.add_dates(folder, uidvalidity, items)
     stamps = db.timestamps(folders)
     return bucketize(stamps)
