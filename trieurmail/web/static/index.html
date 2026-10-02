@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trieurmail</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%235b5bd6'/><path d='M7 11l9 6 9-6M7 10h18v13H7z' stroke='white' stroke-width='2.2' fill='none' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo" data-icon="mail"></div>
+        <span>Trieurmail</span>
+      </div>
+      <nav id="nav"></nav>
+      <div class="sidebar-footer">
+        <div class="status-card" id="llm-status"></div>
+        <div class="status-card" id="usage-status"></div>
+      </div>
+    </aside>
+    <main class="main">
+      <section class="scopebar" id="scopebar"></section>
+      <div class="view" id="view"></div>
+    </main>
+  </div>
+  <div class="dock" id="dock"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

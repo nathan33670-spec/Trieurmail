@@ -22,6 +22,56 @@ from ..services.sync import sync_scope, timeline
 STATIC = Path(__file__).parent / "static"
 
 
+# -- corps des requêtes ----------------------------------------------------
+class ScopeIn(BaseModel):
+    folders: list[str]
+    since: Optional[str] = None
+    until: Optional[str] = None
+
+
+class SeenIn(BaseModel):
+    keys: list[str]
+    seen: bool = True
+
+
+class SummaryIn(BaseModel):
+    key: str
+    force: bool = False
+
+
+class KeysIn(BaseModel):
+    keys: list[str] = []
+    unread_only: bool = False
+
+
+class DraftIn(BaseModel):
+    key: str
+    instructions: str = ""
+    tone: str = "pro"
+
+
+class SendIn(BaseModel):
+    key: str
+    to: str
+    cc: str = ""
+    subject: str
+    body: str
+    send: bool = False
+
+
+class ProposeIn(BaseModel):
+    hint: str = ""
+
+
+class TreeIn(BaseModel):
+    folders: list[dict]
+
+
+class AssignIn(BaseModel):
+    assignments: dict[str, str]
+
+
+
 def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     holder: dict[str, AppContext] = {}
 
@@ -133,10 +183,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     async def get_timeline(folders: list[str] = Query(default=[]), rebuild: bool = False):
         return await timeline(C(), folders or C().scope().folders, rebuild)
 
-    class ScopeIn(BaseModel):
-        folders: list[str]
-        since: Optional[str] = None
-        until: Optional[str] = None
 
     @app.put("/api/scope")
     async def put_scope(scope: ScopeIn):
@@ -191,9 +237,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
             "summary": summaries.get(h.mid),
         }
 
-    class SeenIn(BaseModel):
-        keys: list[str]
-        seen: bool = True
 
     @app.post("/api/message/seen")
     async def mark_seen(data: SeenIn):
@@ -207,17 +250,11 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
         return {"ok": True}
 
     # -- synthèses ---------------------------------------------------------
-    class SummaryIn(BaseModel):
-        key: str
-        force: bool = False
 
     @app.post("/api/summary")
     async def summary(data: SummaryIn):
         return await summarizer.summarize_one(C(), header_or_404(data.key), data.force)
 
-    class KeysIn(BaseModel):
-        keys: list[str] = []
-        unread_only: bool = False
 
     def resolve_keys(data: KeysIn):
         c = C()
@@ -260,10 +297,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     async def reply_ctx(key: str):
         return await drafter.reply_context(C(), header_or_404(key))
 
-    class DraftIn(BaseModel):
-        key: str
-        instructions: str = ""
-        tone: str = "pro"
 
     @app.post("/api/draft")
     async def draft(data: DraftIn):
@@ -281,13 +314,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
         return StreamingResponse(events(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-    class SendIn(BaseModel):
-        key: str
-        to: str
-        cc: str = ""
-        subject: str
-        body: str
-        send: bool = False
 
     @app.post("/api/draft/save")
     async def save_draft(data: SendIn):
@@ -296,8 +322,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
                                           subject=data.subject, body=data.body, send=data.send)
 
     # -- tri ---------------------------------------------------------------
-    class ProposeIn(BaseModel):
-        hint: str = ""
 
     @app.post("/api/sort/propose")
     async def sort_propose(data: ProposeIn):
@@ -308,8 +332,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     async def sort_plan():
         return sorter.public_plan(C().db.get_plan()) or {}
 
-    class TreeIn(BaseModel):
-        folders: list[dict]
 
     @app.put("/api/sort/plan/{plan_id}/tree")
     async def sort_tree(plan_id: int, data: TreeIn):
@@ -323,8 +345,6 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
         c = C()
         return c.jobs.start("sort", lambda j: sorter.assign(c, plan_id, j)).as_dict()
 
-    class AssignIn(BaseModel):
-        assignments: dict[str, str]
 
     @app.put("/api/sort/plan/{plan_id}/assignments")
     async def sort_assignments(plan_id: int, data: AssignIn):

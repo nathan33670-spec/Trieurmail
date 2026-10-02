@@ -288,6 +288,7 @@ async def apply(ctx: AppContext, plan_id: int, job: Job) -> dict:
             ctx.db.forget_moved(folder, chunk)
             moved += len(chunk)
     ctx.db.save_rules(rules)
+    ctx.db.kv_set("priority:last", None)  # les emails déplacés ont changé d'identifiant IMAP
     plan["status"] = "applied"
     plan["applied"] = {"moved": moved, "folders": len(targets), "at": int(time.time())}
     ctx.db.save_plan(plan, plan_id)
@@ -319,4 +320,6 @@ async def apply_rules(ctx: AppContext, job: Job) -> dict:
             await ctx.mail(ctx.backend.move, folder, chunk, dest)
             ctx.db.forget_moved(folder, chunk)
             moved += len(chunk)
+    if moved:
+        ctx.db.kv_set("priority:last", None)
     return {"moved": moved, "rules": len(rules)}
