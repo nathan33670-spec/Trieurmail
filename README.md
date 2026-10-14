@@ -49,6 +49,10 @@ Le jeton de connexion est stocké localement (`~/.trieurmail/graph_token.json`, 
 
 Par défaut, la connexion utilise l'application publique Microsoft « Graph Command Line Tools ». Si votre organisation bloque ce type de connexion (message « approbation d'un administrateur requise » ou « accès conditionnel »), demandez à votre service informatique d'autoriser cette application, ou de vous fournir l'ID d'une application interne. Vous le saisirez dans *Paramètres avancés*, avec éventuellement le domaine de l'entreprise comme « tenant ».
 
+Un guide détaillé (création d'une application dans Microsoft Entra, valeurs du « tenant », comptes outlook.com, codes d'erreur AADSTS, proxy et certificats) est intégré à l'application : bouton **Guide de configuration** à côté de « Se connecter avec Microsoft », ou directement http://127.0.0.1:8765/aide/microsoft-365.
+
+En cas d'erreur inattendue, l'interface affiche le type et le message de l'erreur, et la trace complète apparaît dans le terminal où Trieurmail a été lancé. Derrière un proxy d'entreprise qui inspecte le HTTPS, installez `truststore` (`pip install truststore`) pour utiliser les certificats du système.
+
 #### Outlook classique pour Mac (AppleScript)
 
 Ce mode pilote directement l'application Outlook, **uniquement dans sa version classique (« Legacy Outlook »)**. Le Nouvel Outlook pour Mac ne prend pas en charge AppleScript, et Microsoft a annoncé en août 2026 renoncer à l'ajouter. La version classique n'est plus supportée depuis octobre 2026. Outlook doit être ouvert, et macOS demande au premier usage l'autorisation de le piloter (Réglages Système → Confidentialité et sécurité → Automatisation).

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import threading
 import webbrowser
 
@@ -13,6 +14,7 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true", help="ne pas ouvrir le navigateur")
     args = parser.parse_args()
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
     import uvicorn
 
     from .web.app import create_app

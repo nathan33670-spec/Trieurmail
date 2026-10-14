@@ -72,12 +72,14 @@ async function api(path, { method = "GET", body, signal } = {}) {
   const opts = { method, headers: {}, signal };
   if (body !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
   const res = await fetch(path, opts);
+  const raw = await res.text();
   let data = null;
-  try { data = await res.json(); } catch { /* vide */ }
+  try { data = raw ? JSON.parse(raw) : null; } catch { /* réponse non JSON */ }
   if (!res.ok) {
     let detail = data && data.detail;
     if (Array.isArray(detail)) detail = detail.map((d) => d.msg).join(", ");
-    throw new Error(detail || `Erreur ${res.status}`);
+    if (!detail && raw) detail = `${res.status} ${res.statusText} — ${raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300)}`;
+    throw new Error(detail || `Erreur ${res.status} ${res.statusText}`);
   }
   return data;
 }
@@ -1183,8 +1185,9 @@ function renderSettings() {
           <details class="small"><summary class="muted" style="cursor:pointer">Paramètres avancés</summary>
             <div class="grid-2" style="margin-top:10px">
               <label class="field">ID d'application (client ID)<input class="input" data-path="mail.graph_client_id" value="${v(s.mail.graph_client_id)}"><span class="hint">Par défaut : application publique Microsoft « Graph Command Line Tools ». Si votre service informatique fournit son propre ID, saisissez-le ici.</span></label>
-              <label class="field">Organisation (tenant)<input class="input" data-path="mail.graph_tenant" value="${v(s.mail.graph_tenant)}" placeholder="organizations"><span class="hint">« organizations » ou le domaine de votre entreprise (ex. entreprise.fr).</span></label>
-            </div></details>
+              <label class="field">Organisation (tenant)<input class="input" data-path="mail.graph_tenant" value="${v(s.mail.graph_tenant)}" placeholder="organizations"><span class="hint">« organizations » (comptes pro), « consumers » (outlook.com / hotmail), « common » (les deux), ou le domaine / l'ID d'annuaire de votre entreprise.</span></label>
+            </div>
+            <div class="hint" style="margin-top:8px">Où trouver ces valeurs, comment créer votre propre application, que faire en cas d'erreur : <a href="/aide/microsoft-365" target="_blank" rel="noopener">guide de configuration Microsoft 365 ↗</a></div></details>
         </div>
         <div id="outlook-fields" class="stack ${s.mail.provider === "outlook_mac" ? "" : "hidden"}" style="gap:10px">
           <div class="notice">${icon("alert")}<div>Ce mode pilote <b>Outlook classique</b> (« Legacy Outlook ») par AppleScript. Le <b>Nouvel Outlook</b> ne le permet pas : choisissez alors « Microsoft 365 / Exchange ».</div></div>
@@ -1349,12 +1352,14 @@ function renderGraphPanel(st) {
       <div class="row wrap"><span class="device-code">${esc(st.user_code)}</span>
         <button class="btn sm" id="graph-copy">${icon("copy")}Copier</button>
         <a class="btn sm primary" href="${esc(st.verification_uri)}" target="_blank" rel="noopener">${icon("arrowRight")}Ouvrir la page Microsoft</a></div>
-      <div class="small muted row"><span class="spinner" style="width:12px;height:12px"></span>En attente de votre connexion…</div></div>`;
+      <div class="small muted row"><span class="spinner" style="width:12px;height:12px"></span>En attente de votre connexion…</div>
+      ${st.error ? `<div class="test-result ko">${esc(st.error)}</div>` : ""}</div>`;
     $("#graph-copy").onclick = () => navigator.clipboard.writeText(st.user_code).then(() => toast("Code copié", "success"));
     return;
   }
   panel.innerHTML = `${st.error ? `<div class="test-result ko" style="margin-bottom:10px">${esc(st.error)}</div>` : ""}
-    <button class="btn primary" id="graph-login">${icon("user")}Se connecter avec Microsoft</button>`;
+    <div class="row wrap"><button class="btn primary" id="graph-login">${icon("user")}Se connecter avec Microsoft</button>
+    <a class="btn ghost sm" href="/aide/microsoft-365" target="_blank" rel="noopener">Guide de configuration ↗</a></div>`;
   $("#graph-login").onclick = graphLogin;
 }
 

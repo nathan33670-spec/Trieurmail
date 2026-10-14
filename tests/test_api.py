@@ -53,3 +53,20 @@ def test_api_end_to_end(ctx):
         assert client.get("/api/state").json()["settings"]["llm"]["api_key"] == "••••••••"
         client.put("/api/settings", json={"llm": {"api_key": "••••••••"}})
         assert ctx.settings.llm.api_key == "sk-secret"
+
+
+def test_errors_are_detailed_and_help_page(ctx):
+    with TestClient(create_app(ctx), raise_server_exceptions=False) as client:
+        r = client.post("/api/graph/login", json={"client_id": "pas-un-guid", "tenant": ""})
+        assert r.status_code == 422 and "client ID" in r.json()["detail"]
+        r = client.post("/api/graph/login", json={"client_id": "", "tenant": "mon entreprise"})
+        assert r.status_code == 422 and "tenant" in r.json()["detail"]
+
+        def boom():
+            raise RuntimeError("panne simulée")
+
+        ctx.graph_auth.start_device_flow = boom
+        r = client.post("/api/graph/login", json={})
+        assert r.status_code == 500 and "RuntimeError" in r.json()["detail"] and "panne simulée" in r.json()["detail"]
+        page = client.get("/aide/microsoft-365")
+        assert page.status_code == 200 and "Autoriser les flux de clients publics" in page.text

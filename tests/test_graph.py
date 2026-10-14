@@ -87,3 +87,40 @@ async def test_services_on_graph(ctx, graph):
     assert "Finances" in created and fake.folders[created["Factures"]]["parent"] == created["Finances"]
     assert all(m["folder"] == created["Factures"] for m in fake.messages.values()
                if m.get("from", {}).get("emailAddress", {}).get("address") == "noreply@edf.fr")
+
+
+def test_auth_errors_are_explicit(tmp_path):
+    import httpx
+
+    from trieurmail.mail.backend import MailError
+
+    def down(request):
+        raise httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+
+    auth = GraphAuth("client", "organizations", tmp_path / "t.json", transport=httpx.MockTransport(down))
+    with pytest.raises(MailError, match="certificat HTTPS refusé"):
+        auth.start_device_flow()
+
+    html = httpx.MockTransport(lambda r: httpx.Response(502, text="<html><body>Bad gateway</body></html>"))
+    auth = GraphAuth("client", "organizations", tmp_path / "t.json", transport=html)
+    with pytest.raises(MailError, match="HTTP 502.*Bad gateway"):
+        auth.start_device_flow()
+
+    refused = httpx.MockTransport(lambda r: httpx.Response(400, json={
+        "error": "unauthorized_client", "error_description": "AADSTS7000218: The request body must contain..."}))
+    auth = GraphAuth("client", "organizations", tmp_path / "t.json", transport=refused)
+    with pytest.raises(MailError, match="flux de client public"):
+        auth.start_device_flow()
+
+
+def test_tenant_and_client_id_validation():
+    from trieurmail.mail.graph_auth import normalize_tenant, validate_client_id
+
+    assert normalize_tenant("") == "organizations"
+    assert normalize_tenant(" moi@entreprise.fr ") == "entreprise.fr"
+    assert normalize_tenant("https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0") == "contoso.onmicrosoft.com"
+    with pytest.raises(ValueError):
+        normalize_tenant("mon entreprise")
+    assert validate_client_id(" 14d82eec-204b-4c2f-b7e8-296a70dab67e ") == "14d82eec-204b-4c2f-b7e8-296a70dab67e"
+    with pytest.raises(ValueError):
+        validate_client_id("mon-app")

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion Microsoft 365 — Trieurmail</title>
+<link rel="stylesheet" href="/static/styles.css">
+<style>
+  body { background: var(--bg); color: var(--text); font-family: var(--font); margin: 0; line-height: 1.6; }
+  .doc { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+  .doc h1 { font-size: 28px; margin: 0 0 6px; }
+  .doc h2 { font-size: 20px; margin: 40px 0 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .doc h3 { font-size: 16px; margin: 24px 0 6px; }
+  .doc p, .doc li { color: var(--text); }
+  .doc .lead { color: var(--text-2); font-size: 16px; }
+  .doc a { color: var(--accent-text); }
+  .doc code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; font-size: 13px; }
+  .doc ol li, .doc ul li { margin: 6px 0; }
+  .doc table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  .doc th, .doc td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .doc th { color: var(--text-2); font-weight: 600; }
+  .doc .box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin: 14px 0; }
+  .doc .tip { border-left: 4px solid var(--accent); }
+  .doc .warn { border-left: 4px solid var(--orange); }
+  .doc nav ul { columns: 2; padding-left: 18px; }
+  .doc .table-wrap { overflow-x: auto; }
+  @media (max-width: 600px) { .doc nav ul { columns: 1; } }
+</style>
+</head>
+<body>
+<main class="doc">
+  <h1>Connexion Microsoft 365 / Exchange</h1>
+  <p class="lead">Comment connecter Trieurmail à votre boîte Outlook (Microsoft 365, Exchange Online ou outlook.com), à quoi servent l'« ID d'application » et l'« organisation (tenant) », et comment résoudre les erreurs courantes.</p>
+
+  <nav class="box">
+    <b>Sommaire</b>
+    <ul>
+      <li><a href="#rapide">Connexion rapide (cas général)</a></li>
+      <li><a href="#champs">Les deux paramètres avancés</a></li>
+      <li><a href="#tenant">Trouver votre organisation (tenant)</a></li>
+      <li><a href="#app">Créer votre propre application (client ID)</a></li>
+      <li><a href="#admin">Si l'administrateur doit approuver</a></li>
+      <li><a href="#erreurs">Messages d'erreur et solutions</a></li>
+      <li><a href="#reseau">Réseau, proxy et certificats</a></li>
+      <li><a href="#securite">Sécurité et déconnexion</a></li>
+    </ul>
+  </nav>
+
+  <h2 id="rapide">1. Connexion rapide (cas général)</h2>
+  <p>Dans la plupart des cas, aucune configuration n'est nécessaire :</p>
+  <ol>
+    <li>Dans Trieurmail, ouvrez <b>Réglages → Messagerie</b> et choisissez <b>Microsoft 365 / Exchange</b>.</li>
+    <li>Cliquez sur <b>Se connecter avec Microsoft</b>. Un code (ex. <code>ABCD1234</code>) s'affiche.</li>
+    <li>Ouvrez la page <a href="https://microsoft.com/devicelogin" target="_blank" rel="noopener">microsoft.com/devicelogin</a>, collez le code puis connectez-vous avec votre compte (MFA comprise).</li>
+    <li>Acceptez les autorisations demandées. Trieurmail détecte la connexion en quelques secondes.</li>
+  </ol>
+  <div class="box tip">Par défaut, Trieurmail utilise l'application publique de Microsoft <b>« Microsoft Graph Command Line Tools »</b> (ID <code>14d82eec-204b-4c2f-b7e8-296a70dab67e</code>). Vous n'avez donc rien à créer, sauf si votre organisation bloque cette application (voir <a href="#admin">section 5</a>).</div>
+
+  <h2 id="champs">2. Les deux paramètres avancés</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Champ</th><th>À quoi il sert</th><th>Valeur par défaut</th></tr>
+    <tr><td><b>ID d'application (client ID)</b></td><td>Identifiant de l'application enregistrée chez Microsoft au nom de laquelle Trieurmail demande l'accès à votre boîte. Format : <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>.</td><td><code>14d82eec-204b-4c2f-b7e8-296a70dab67e</code> (Graph Command Line Tools)</td></tr>
+    <tr><td><b>Organisation (tenant)</b></td><td>L'annuaire Microsoft (Entra ID) qui authentifie votre compte.</td><td><code>organizations</code></td></tr>
+  </table></div>
+  <p>Valeurs possibles pour le tenant :</p>
+  <ul>
+    <li><code>organizations</code> — n'importe quel compte professionnel ou scolaire (Microsoft 365).</li>
+    <li><code>consumers</code> — comptes personnels uniquement (outlook.com, hotmail.com, live.com).</li>
+    <li><code>common</code> — comptes professionnels <i>et</i> personnels.</li>
+    <li>Le <b>domaine</b> de l'entreprise (ex. <code>entreprise.fr</code>) ou son <b>ID d'annuaire</b> (GUID) — obligatoire si l'application utilisée n'accepte qu'une seule organisation.</li>
+  </ul>
+  <div class="box tip">Compte personnel <b>outlook.com / hotmail</b> ? Saisissez <code>consumers</code> (ou <code>common</code>) comme tenant : avec <code>organizations</code>, Microsoft refuse les comptes personnels.</div>
+
+  <h2 id="tenant">3. Trouver votre organisation (tenant)</h2>
+  <ul>
+    <li>Le plus simple : la partie après le <code>@</code> de votre adresse professionnelle (ex. <code>entreprise.fr</code>). Trieurmail accepte aussi l'adresse complète et en extrait le domaine.</li>
+    <li>L'ID d'annuaire exact : <a href="https://entra.microsoft.com/#view/Microsoft_AAD_IAM/TenantOverview.ReactView" target="_blank" rel="noopener">Microsoft Entra → Vue d'ensemble</a>, champ <b>ID de locataire (Tenant ID)</b>. Sans accès au portail, demandez-le à votre service informatique.</li>
+    <li>Référence Microsoft : <a href="https://learn.microsoft.com/fr-fr/entra/fundamentals/how-to-find-tenant" target="_blank" rel="noopener">Trouver votre ID de locataire</a>.</li>
+  </ul>
+
+  <h2 id="app">4. Créer votre propre application (client ID)</h2>
+  <p>Utile si l'application par défaut est bloquée, ou si votre service informatique préfère une application dédiée. Il faut un compte autorisé à enregistrer des applications (souvent un administrateur ; pour un compte personnel, n'importe quel compte Microsoft convient).</p>
+  <ol>
+    <li>Ouvrez <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Microsoft Entra → Inscriptions d'applications</a> (ou <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">le même écran dans le portail Azure</a>) puis <b>+ Nouvelle inscription</b>.</li>
+    <li><b>Nom</b> : par exemple « Trieurmail ».</li>
+    <li><b>Types de comptes pris en charge</b> :
+      <ul>
+        <li>« Comptes dans cet annuaire organisationnel uniquement » → indiquez ensuite votre domaine ou ID d'annuaire comme tenant ;</li>
+        <li>« Comptes dans un annuaire organisationnel » → tenant <code>organizations</code> ;</li>
+        <li>« … et comptes Microsoft personnels » → tenant <code>common</code> (ou <code>consumers</code> pour un compte personnel).</li>
+      </ul></li>
+    <li><b>URI de redirection</b> : laissez vide (la connexion par code n'en a pas besoin). Cliquez sur <b>S'inscrire</b>.</li>
+    <li>Dans <b>Authentification</b> (ou <b>Authentication</b>), section <b>Paramètres avancés</b>, activez <b>Autoriser les flux de clients publics</b> (« Allow public client flows ») → <b>Oui</b>, puis <b>Enregistrer</b>. <i>Sans cela, la connexion échoue avec l'erreur AADSTS7000218.</i></li>
+    <li>Dans <b>Autorisations de l'API</b> → <b>Ajouter une autorisation</b> → <b>Microsoft Graph</b> → <b>Autorisations déléguées</b>, cochez :
+      <code>User.Read</code>, <code>Mail.ReadWrite</code>, <code>Mail.Send</code>, <code>offline_access</code>. (Facultatif : un administrateur peut cliquer sur <b>Accorder le consentement administrateur</b> pour toute l'organisation.)</li>
+    <li>Revenez sur <b>Vue d'ensemble</b> et copiez :
+      <ul>
+        <li><b>ID d'application (client)</b> → champ « ID d'application (client ID) » de Trieurmail ;</li>
+        <li><b>ID de l'annuaire (locataire)</b> → champ « Organisation (tenant) » (si l'application est mono-organisation).</li>
+      </ul></li>
+    <li>Dans Trieurmail : <b>Réglages → Messagerie → Paramètres avancés</b>, collez les valeurs, puis <b>Se connecter avec Microsoft</b>.</li>
+  </ol>
+  <p>Références Microsoft : <a href="https://learn.microsoft.com/fr-fr/entra/identity-platform/quickstart-register-app" target="_blank" rel="noopener">Inscrire une application</a> ·
+    <a href="https://learn.microsoft.com/fr-fr/entra/identity-platform/v2-oauth2-device-code" target="_blank" rel="noopener">Flux d'autorisation par code d'appareil</a> ·
+    <a href="https://learn.microsoft.com/fr-fr/graph/permissions-reference" target="_blank" rel="noopener">Autorisations Microsoft Graph</a>.</p>
+
+  <h2 id="admin">5. Si l'administrateur doit approuver</h2>
+  <p>De nombreuses organisations interdisent aux utilisateurs d'autoriser seuls une application. Le message « approbation d'un administrateur requise » (AADSTS65001 / AADSTS90094) apparaît alors. Deux options :</p>
+  <ul>
+    <li>Demander à l'administrateur d'accorder le consentement pour l'application utilisée (par défaut <code>14d82eec-204b-4c2f-b7e8-296a70dab67e</code>) : <a href="https://learn.microsoft.com/fr-fr/entra/identity/enterprise-apps/grant-admin-consent" target="_blank" rel="noopener">Accorder le consentement administrateur</a>.</li>
+    <li>Lui demander de créer une application dédiée (<a href="#app">section 4</a>) et de vous communiquer son ID d'application et l'ID d'annuaire.</li>
+  </ul>
+
+  <h2 id="erreurs">6. Messages d'erreur et solutions</h2>
+  <p>Les erreurs Microsoft commencent par un code <code>AADSTSxxxxx</code>. Le détail de chaque code est consultable sur <a href="https://login.microsoftonline.com/error" target="_blank" rel="noopener">login.microsoftonline.com/error</a> et dans la <a href="https://learn.microsoft.com/fr-fr/entra/identity-platform/reference-error-codes" target="_blank" rel="noopener">liste officielle des codes</a>.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Code / message</th><th>Cause</th><th>Solution</th></tr>
+    <tr><td>AADSTS65001, AADSTS90094</td><td>Consentement administrateur requis.</td><td>Voir <a href="#admin">section 5</a>.</td></tr>
+    <tr><td>AADSTS53003</td><td>Bloqué par une stratégie d'accès conditionnel.</td><td>Voir avec le service informatique (appareil géré, réseau, etc.).</td></tr>
+    <tr><td>AADSTS700016</td><td>Client ID inconnu dans l'organisation.</td><td>Vérifiez l'ID d'application et le tenant ; l'application doit accepter votre type de compte.</td></tr>
+    <tr><td>AADSTS7000218, AADSTS70002</td><td>« Flux de clients publics » désactivé sur votre application.</td><td>Entra → votre application → Authentification → Autoriser les flux de clients publics : Oui.</td></tr>
+    <tr><td>AADSTS50194</td><td>Application mono-organisation utilisée avec <code>organizations</code>.</td><td>Indiquez l'ID d'annuaire ou le domaine comme tenant.</td></tr>
+    <tr><td>AADSTS50020</td><td>Compte d'une autre organisation que le tenant indiqué.</td><td>Corrigez le tenant, ou utilisez <code>organizations</code> / <code>common</code>.</td></tr>
+    <tr><td>AADSTS9002346 / compte personnel refusé</td><td>Compte outlook.com avec un tenant professionnel (ou l'inverse).</td><td>Tenant <code>consumers</code> pour un compte personnel, <code>organizations</code> pour un compte pro.</td></tr>
+    <tr><td>AADSTS900023, AADSTS90002, AADSTS50059</td><td>Tenant invalide ou introuvable.</td><td>Saisissez un domaine, un ID d'annuaire, <code>organizations</code>, <code>common</code> ou <code>consumers</code>.</td></tr>
+    <tr><td>« Le code a expiré »</td><td>Code non saisi dans les 15 minutes.</td><td>Relancez la connexion.</td></tr>
+    <tr><td>« Impossible de joindre login.microsoftonline.com »</td><td>Pas d'accès réseau, proxy ou certificat refusé.</td><td>Voir <a href="#reseau">section 7</a>.</td></tr>
+    <tr><td>« Erreur interne (…) »</td><td>Erreur inattendue de Trieurmail.</td><td>La trace complète est affichée dans le terminal où <code>python -m trieurmail</code> a été lancé : joignez-la à votre signalement.</td></tr>
+  </table></div>
+
+  <h2 id="reseau">7. Réseau, proxy et certificats</h2>
+  <ul>
+    <li>L'ordinateur doit pouvoir joindre <code>https://login.microsoftonline.com</code> et <code>https://graph.microsoft.com</code>.</li>
+    <li><b>Proxy d'entreprise</b> : définissez la variable <code>HTTPS_PROXY</code> (ex. <code>export HTTPS_PROXY=http://proxy.entreprise.fr:8080</code>) avant de lancer Trieurmail.</li>
+    <li><b>Certificat refusé</b> (« CERTIFICATE_VERIFY_FAILED ») : un proxy ou un antivirus inspecte le HTTPS avec un certificat interne. Installez <code>truststore</code> pour que Trieurmail utilise les certificats de votre système (<code>pip install truststore</code>), ou indiquez le certificat de l'entreprise via <code>export SSL_CERT_FILE=/chemin/vers/certificat.pem</code>.</li>
+  </ul>
+
+  <h2 id="securite">8. Sécurité et déconnexion</h2>
+  <ul>
+    <li>Aucun mot de passe ne transite par Trieurmail : seul un jeton est conservé dans <code>~/.trieurmail/graph_token.json</code>, lisible par vous seul.</li>
+    <li>Autorisations demandées : <code>User.Read</code> (votre nom et adresse), <code>Mail.ReadWrite</code> (lire, classer, créer des brouillons), <code>Mail.Send</code> (envoyer quand vous le demandez), <code>offline_access</code> (rester connecté).</li>
+    <li>Pour révoquer l'accès : <b>Se déconnecter</b> dans Trieurmail, et éventuellement retirer l'application depuis <a href="https://myapps.microsoft.com" target="_blank" rel="noopener">myapps.microsoft.com</a> (compte pro) ou <a href="https://account.live.com/consent/Manage" target="_blank" rel="noopener">account.live.com/consent/Manage</a> (compte personnel).</li>
+  </ul>
+</main>
+</body>
+</html>

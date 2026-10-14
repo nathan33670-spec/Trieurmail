@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import html as html_lib
 import json
+import logging
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,11 +17,13 @@ from pydantic import BaseModel
 
 from ..llm.client import LLMClient, LLMError
 from ..mail.backend import MailError
+from ..mail.graph_auth import normalize_tenant, validate_client_id
 from ..services import drafter, priority, sorter, summarizer
 from ..services.context import AppContext
 from ..services.sync import sync_scope, timeline
 
 STATIC = Path(__file__).parent / "static"
+log = logging.getLogger("trieurmail")
 
 
 # -- corps des requêtes ----------------------------------------------------
@@ -99,6 +102,16 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     @app.exception_handler(LLMError)
     async def llm_error(_: Request, exc: LLMError):
         return JSONResponse({"detail": f"IA : {exc}"}, status_code=400)
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(_: Request, exc: Exception):
+        # Jamais de « 500 » muet : le détail est renvoyé à l'interface ; Starlette relance
+        # ensuite l'exception, et uvicorn affiche la trace complète dans le terminal.
+        return JSONResponse(
+            {"detail": f"Erreur interne ({type(exc).__name__}) : {exc or 'sans message'} — "
+                       "le détail complet est affiché dans le terminal où Trieurmail a été lancé."},
+            status_code=500,
+        )
 
     def header_or_404(key: str):
         h = C().db.get_header(key)
@@ -191,15 +204,31 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
     async def graph_login(data: GraphLoginIn):
         c = C()
         patch = {"provider": "graph"}
-        if data.client_id.strip():
-            patch["graph_client_id"] = data.client_id.strip()
-        if data.tenant.strip():
-            patch["graph_tenant"] = data.tenant.strip()
+        try:
+            if data.client_id.strip():
+                patch["graph_client_id"] = validate_client_id(data.client_id)
+            if data.tenant.strip():
+                patch["graph_tenant"] = normalize_tenant(data.tenant)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        previous = getattr(app.state, "graph_poll", None)
+        if previous is not None and not previous.done():
+            previous.cancel()
         await c.update_settings({"mail": patch})
         auth = c.graph_auth
         status = await asyncio.to_thread(auth.start_device_flow)
 
         async def poll() -> None:
+            try:
+                await poll_loop()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # la tâche tourne en arrière-plan : l'erreur doit rester visible
+                log.exception("Connexion Microsoft 365 : échec de l'attente du jeton")
+                auth.flow = None
+                auth.error = f"Erreur pendant la connexion ({type(exc).__name__}) : {exc}"
+
+        async def poll_loop() -> None:
             while auth.flow:
                 await asyncio.sleep(auth.flow["interval"])
                 result = await asyncio.to_thread(auth.poll_once)
@@ -434,6 +463,10 @@ def create_app(ctx: Optional[AppContext] = None) -> FastAPI:
 
     # -- interface ---------------------------------------------------------
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+    @app.get("/aide/microsoft-365")
+    async def help_graph():
+        return FileResponse(STATIC / "aide-microsoft-365.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/")
     async def index():
